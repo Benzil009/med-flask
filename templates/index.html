@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediGramin - Medical Chatbot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body class="bg-gray-100">
+    <div class="max-w-3xl mx-auto p-4">
+        <h1 class="text-3xl font-bold text-center text-blue-600 mb-2">Welcome to MediGramin</h1>
+        <h2 class="text-xl text-center text-gray-700 mb-6">Your Health Remedy Assistant</h2>
+        
+        <div id="chatContainer" class="bg-white rounded-lg shadow-md p-4 h-96 overflow-auto mb-4">
+            <div class="message bot-message float-left bg-gray-100 rounded-lg p-3 mb-2 max-w-[80%]">
+                Hello, I'm MediGramin. How can I help you with health remedies today?
+                <button class="speak-button" onclick="speakText(this.parentElement.textContent, getCurrentLanguage())">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 5L6 9H2v6h4l5 4V5z"></path>
+                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+                    </svg>
+                </button>
+            </div>
+            <!-- Add clear float div -->
+            <div class="clear-both"></div>
+        </div>
+        
+        <div class="flex mb-4">
+            <input type="text" id="userInput" class="flex-1 px-4 py-2 border border-gray-300 rounded-l-full focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Type your message...">
+            <button id="sendButton" class="bg-blue-600 text-white px-6 py-2 rounded-r-full hover:bg-blue-700 transition">Send</button>
+        </div>
+        
+        <div class="mb-6">
+            <p class="text-center text-gray-600 mb-2">Select language:</p>
+            <div class="flex flex-wrap justify-center gap-2">
+                <button class="lang-btn active" data-lang="English">English</button>
+                <button class="lang-btn" data-lang="Hindi">Hindi</button>
+                <button class="lang-btn" data-lang="Tamil">Tamil</button>
+                <button class="lang-btn" data-lang="Telugu">Telugu</button>
+                <button class="lang-btn" data-lang="Bengali">Bengali</button>
+                <button class="lang-btn" data-lang="Marathi">Marathi</button>
+            </div>
+        </div>
+        
+        <div class="text-center text-xs text-gray-500">
+            MediGramin provides general health information. Always consult a doctor for medical advice.
+        </div>
+    </div>
+    
+    <script>
+        // Language codes mapping
+        const languageCodes = {
+            "English": "en-US",
+            "Hindi": "hi-IN",
+            "Tamil": "ta-IN",
+            "Telugu": "te-IN",
+            "Bengali": "bn-IN",
+            "Marathi": "mr-IN"
+        };
+        
+        let isSpeaking = false;
+        
+        // Get current selected language
+        function getCurrentLanguage() {
+            const activeBtn = document.querySelector('.lang-btn.active');
+            return activeBtn ? activeBtn.dataset.lang : 'English';
+        }
+        
+        // Text-to-speech functionality
+        function speakText(text, langName) {
+            // Stop any ongoing speech
+            if (window.speechSynthesis.speaking) {
+                window.speechSynthesis.cancel();
+                document.querySelectorAll('.speak-button').forEach(btn => {
+                    btn.classList.remove('speaking');
+                });
+                return;
+            }
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = languageCodes[langName] || 'en-US';
+            utterance.rate = 0.9; // Slightly slower for better clarity
+            
+            utterance.onstart = () => {
+                document.querySelectorAll('.speak-button').forEach(btn => {
+                    btn.classList.remove('speaking');
+                });
+                event.currentTarget.classList.add('speaking');
+            };
+            
+            utterance.onend = () => {
+                event.currentTarget.classList.remove('speaking');
+            };
+            
+            window.speechSynthesis.speak(utterance);
+        }
+        
+        // Send message to server
+        async function sendMessage() {
+            const userInput = document.getElementById('userInput');
+            const message = userInput.value.trim();
+            
+            if (!message) return;
+            
+            // Add user message to chat
+            const chatContainer = document.getElementById('chatContainer');
+            const userMessageDiv = document.createElement('div');
+            userMessageDiv.className = 'message user-message float-right bg-blue-600 text-white rounded-lg p-3 mb-2 max-w-[80%] clear-both';
+            userMessageDiv.textContent = message;
+            chatContainer.appendChild(userMessageDiv);
+            
+            // Add a div to clear floats after user message
+            const clearUserDiv = document.createElement('div');
+            clearUserDiv.className = 'clear-both';
+            chatContainer.appendChild(clearUserDiv);
+            
+            // Clear input
+            userInput.value = '';
+            
+            // Add loading indicator
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'message bot-message float-left bg-gray-100 rounded-lg p-3 mb-2 max-w-[80%] clear-both';
+            loadingDiv.innerHTML = '<div class="loading"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';
+            chatContainer.appendChild(loadingDiv);
+            
+            // Scroll to bottom
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            
+            try {
+                // Send request to server
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        language: getCurrentLanguage()
+                    })
+                });
+                
+                const data = await response.json();
+                
+                // Remove loading indicator
+                chatContainer.removeChild(loadingDiv);
+                
+                // Add bot response
+                const botMessageDiv = document.createElement('div');
+                botMessageDiv.className = 'message bot-message float-left bg-gray-100 rounded-lg p-3 mb-2 max-w-[80%] clear-both';
+                botMessageDiv.innerText = data.reply;
+                
+                // Add speak button
+                const speakButton = document.createElement('button');
+                speakButton.className = 'speak-button';
+                speakButton.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 5L6 9H2v6h4l5 4V5z"></path>
+                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+                    </svg>
+                `;
+                speakButton.onclick = function() {
+                    speakText(botMessageDiv.textContent, getCurrentLanguage());
+                };
+                
+                botMessageDiv.appendChild(speakButton);
+                chatContainer.appendChild(botMessageDiv);
+                
+                // Add a div to clear floats
+                const clearDiv = document.createElement('div');
+                clearDiv.className = 'clear-both';
+                chatContainer.appendChild(clearDiv);
+                
+                // Scroll to bottom
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+                
+            } catch (error) {
+                console.error('Error:', error);
+                
+                // Remove loading indicator
+                chatContainer.removeChild(loadingDiv);
+                
+                // Add error message
+                const errorMessageDiv = document.createElement('div');
+                errorMessageDiv.className = 'message bot-message float-left bg-gray-100 rounded-lg p-3 mb-2 max-w-[80%] clear-both';
+                errorMessageDiv.textContent = "Sorry, I'm having trouble connecting right now. Please try again later.";
+                chatContainer.appendChild(errorMessageDiv);
+                
+                // Add a div to clear floats after error message
+                const clearErrorDiv = document.createElement('div');
+                clearErrorDiv.className = 'clear-both';
+                chatContainer.appendChild(clearErrorDiv);
+                
+                // Scroll to bottom
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+        }
+        
+        // Event listeners
+        document.getElementById('sendButton').addEventListener('click', sendMessage);
+        
+        document.getElementById('userInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+        
+        // Language selection
+        document.querySelectorAll('.lang-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>
